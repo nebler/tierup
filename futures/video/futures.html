@@ -1,0 +1,212 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="common.js"></script><script src="futures-data.js"></script>
+<style>
+html, body { margin: 0; background: #000; }
+.stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #000; font-family: Newsreader, Georgia, serif; color: #f6f1ea; }
+canvas { position: absolute; }
+.mono { font-family: "JetBrains Mono", monospace; }
+#cv, #pre { inset: 0; width: 1920px; height: 1080px; }
+#flare { position: absolute; inset: 0; background: radial-gradient(ellipse 70% 55% at 50% 42%, #fff3dcff 0%, #ffb46a88 30%, #ff8a3a00 70%); mix-blend-mode: screen; opacity: 0; }
+#ring { position: absolute; left: 960px; top: 455px; border: 2px solid #ffe6c4; border-radius: 50%; transform: translate(-50%, -50%); opacity: 0; box-shadow: 0 0 40px #ffc98a88, inset 0 0 40px #ffc98a55; }
+#topg { position: absolute; left: 0; right: 0; top: 0; height: 250px; background: linear-gradient(#000 38%, #0000); }
+#floor { position: absolute; left: 0; right: 0; bottom: 0; height: 400px; background: linear-gradient(#0000, #000 34%); }
+#grain { inset: -50%; width: 200%; height: 200%; opacity: .06; mix-blend-mode: overlay; }
+.line { position: absolute; left: 0; right: 0; text-align: center; font-size: 68px; letter-spacing: -.5px; text-shadow: 0 0 44px #000, 0 2px 16px #000c; }
+.line span { display: inline-block; white-space: pre; }
+#code { position: absolute; left: 560px; top: 196px; width: 800px; font-size: 13px; line-height: 15.5px; color: #a8a299; }
+#code div { white-space: pre; overflow: hidden; height: 15.5px; }
+#mode { position: absolute; left: 112px; top: 742px; font-size: 22px; letter-spacing: 5px; font-weight: 500; }
+#num { position: absolute; left: 104px; top: 776px; font-size: 176px; line-height: 1; letter-spacing: -6px; transform-origin: left bottom; font-variant-numeric: lining-nums tabular-nums; }
+#num small { font-size: 50px; letter-spacing: 0; margin-left: 14px; color: #a39d94; }
+#stats { position: absolute; right: 112px; top: 742px; text-align: right; }
+#stats .k { font-size: 16px; letter-spacing: 3px; color: #8d877f; }
+#stats .v { font-family: Newsreader, Georgia, serif; font-size: 84px; line-height: 1.02; font-variant-numeric: lining-nums tabular-nums; }
+#stats .s { font-size: 20px; letter-spacing: 2px; color: #7ff5dc; }
+#status { position: absolute; right: 112px; top: 908px; font-size: 20px; letter-spacing: 1.5px; color: #c9c3ba; text-align: right; }
+#strip { left: 110px; top: 954px; width: 1700px; height: 70px; }
+#legend { position: absolute; left: 112px; top: 1032px; font-size: 18px; letter-spacing: 2px; color: #7d776f; }
+#black { position: absolute; inset: 0; background: #000; opacity: 0; }
+#end1 { top: 360px; font-size: 170px; letter-spacing: -3px; }
+#end2 { top: 580px; font-size: 44px; color: #c9c3ba; }
+#end2b { top: 648px; font-size: 44px; }
+#end3 { top: 790px; font-size: 20px; letter-spacing: 3px; color: #8d877f; }
+</style></head><body>
+<div class="stage">
+  <canvas id="cv" width="1920" height="1080"></canvas>
+  <div id="flare"></div><div id="ring"></div><div id="topg"></div><div id="floor"></div>
+  <div id="hud"><div id="mode" class="mono"></div><div id="num"></div>
+    <div id="stats" class="mono"><div class="k">FUTURES PREDICTED</div><div class="v" id="sv"></div><div class="s" id="ss"></div></div>
+    <div id="status" class="mono"></div>
+    <canvas id="strip" width="1700" height="70"></canvas><div id="legend" class="mono">EACH LINE = ONE FUTURE PREDICTED</div></div>
+  <canvas id="pre" width="1920" height="1080"></canvas>
+  <div id="code" class="mono"></div>
+  <canvas id="grain" width="960" height="540"></canvas>
+  <div class="line" id="cap" style="top:84px"></div>
+  <div id="black"></div>
+  <div class="line" id="end1"></div><div class="line" id="end2"></div><div class="line" id="end2b"></div><div class="line mono" id="end3"></div>
+</div>
+<script>
+const H = window.H, PRE = 13, START = PRE + 3.6, FLIGHT = 8.0, DAYS = 360;
+const SWAP_E = H.futures[H.swapAt].done, LAST_E = SWAP_E + FLIGHT;
+const F = H.futures.filter((f) => f.done <= LAST_E), NF = F.length;
+const T_SWAP = START + SWAP_E, T_HOT = START + H.compileStarted, T_COMP = START + H.compileSecs, T_END = START + LAST_E;
+const AMBER = "#f2b35a", WHITE = "#f6f1ea", GREEN = "#9fe8b4", BLUE = "#7fb4ff", TEAL = "#7ff5dc", RED = "#ff6a50";
+const SERIF = "Newsreader, Georgia, serif", MONO = '"JetBrains Mono", monospace';
+const X = Math.floor(H.speedup);
+window.DURATION = T_END + 6.6; window.T_SWAP = T_SWAP;
+window.READY = false; document.fonts.ready.then(() => { window.READY = true; });
+// decode each prediction: outcome, the day it ended, and where everything was on every day
+for (const f of F) {
+  const o = f.out; f.outcome = o[0]; f.ended = o.charCodeAt(1) - 32 + 90 * (o.charCodeAt(2) - 32);
+  const p = f.path = new Float32Array(DAYS * 8);
+  for (let k = 0; k < DAYS * 8; k++) p[k] = (o.charCodeAt(3 + 2 * k) - 32 + 90 * (o.charCodeAt(4 + 2 * k) - 32)) / 1350 - 3;
+}
+const SURV = F.filter((f) => f.outcome === "S").length;
+const survAt = (n) => { let c = 0; for (let i = 0; i < n; i++) if (F[i].outcome === "S") c++; return c; };
+// the wall: cells fill outward from the centre, wide rather than tall
+const ASPECT = 4, GX = 960, GY = 455, HALF = 285, HALFW = 940, MAXPX = 232, cells = [];
+{ const R = Math.ceil(Math.sqrt(NF / ASPECT)) + 3;
+  for (let j = -R; j < R; j++) for (let i = -Math.ceil(R * ASPECT); i < Math.ceil(R * ASPECT); i++) { const dx = i + .5, dy = j + .5; cells.push({ dx, dy, d: Math.max(Math.abs(dx) / ASPECT, Math.abs(dy)) }); }
+  const ang = (c) => (Math.atan2(c.dx / ASPECT, -c.dy) + 2 * Math.PI) % (2 * Math.PI);
+  cells.sort((a, b) => Math.ceil(a.d) - Math.ceil(b.d) || (Math.ceil(a.d) === 1 ? a.dy - b.dy || a.dx - b.dx : ang(a) - ang(b))); cells.length = NF; }
+const startedAt = (e) => { let n = 0; while (n < NF && F[n].start <= e) n++; return n; }, doneAt = (e) => { let n = 0; while (n < NF && F[n].done <= e) n++; return n; };
+// camera: always just wide enough to hold every future so far (smoothed)
+const CAMHZ = 60, cam = []; { let c = MAXPX; for (let i = 0; i <= (window.DURATION + 1) * CAMHZ; i++) { const e = i / CAMHZ - START, n = Math.max(1, startedAt(Math.min(e, LAST_E)));
+    const ring = Math.ceil(cells[n - 1].d), target = Math.min(MAXPX, HALF / (ring + .04), HALFW / (ring * ASPECT + .05)); c += (target - c) * (1 - Math.exp(-6 / CAMHZ)); cam.push(c); } }
+const camAt = (t) => { const x = Math.max(0, t * CAMHZ), i = Math.min(cam.length - 2, Math.floor(x)); return cam[i] + (cam[i + 1] - cam[i]) * (x - i); };
+const SUN = ["255,205,135", "255,112,58", "140,185,255"];
+// one future in a box. prog 0..1 = how much of its year has been played back
+function drawBox(c, f, x, y, s, prog, opt = {}) {
+  const u = s / 5.4, cx = x + s / 2, cy = y + s / 2, day = Math.max(0, Math.min(DAYS - 1, Math.floor(prog * DAYS) - 1)), p = f.path, big = s >= 130;
+  c.save(); c.beginPath(); c.rect(x, y, s, s); c.clip();
+  if (!opt.bare) { c.fillStyle = "#060910"; c.fillRect(x, y, s, s); }
+  const plain = !!opt.plain;
+  if (prog > 0) {
+    const step = s < 60 ? 5 : s < 130 ? 2 : 1; c.lineJoin = "round";
+    for (let b = 0; b < 3; b++) { c.strokeStyle = `rgba(${SUN[b]},${s < 130 ? .8 : .5})`; c.lineWidth = s < 130 ? 1.3 : Math.max(1, s / 170); c.beginPath();
+      for (let d = 0; d <= day; d += step) { const px = cx + p[d * 8 + b * 2] * u, py = cy - p[d * 8 + b * 2 + 1] * u; d ? c.lineTo(px, py) : c.moveTo(px, py); } c.stroke(); }
+    // the planet: where it has been (dots) and where it is (bright, ringed)
+    const pd = Math.min(day, f.ended - 1), pr = Math.max(1.6, plain ? s / 110 : s / 32);
+    if (s >= 60) { c.fillStyle = "rgba(127,245,220,.5)"; for (let d = Math.max(0, pd - 60); d <= pd; d += 1) c.fillRect(cx + p[d * 8 + 6] * u - pr * .22, cy - p[d * 8 + 7] * u - pr * .22, pr * .44, pr * .44); }
+    for (let b = 0; b < 3; b++) { const px = cx + p[day * 8 + b * 2] * u, py = cy - p[day * 8 + b * 2 + 1] * u, R = Math.max(2.4, plain ? s / 60 : s / 22);
+      if (s >= 60) { const g = c.createRadialGradient(px, py, 0, px, py, R * 2.6); g.addColorStop(0, "#fff"); g.addColorStop(.22, `rgba(${SUN[b]},1)`); g.addColorStop(1, `rgba(${SUN[b]},0)`); c.fillStyle = g; c.beginPath(); c.arc(px, py, R * 2.6, 0, 7); c.fill(); }
+      else { c.fillStyle = `rgb(${SUN[b]})`; c.fillRect(px - 1.2, py - 1.2, 2.4, 2.4); } }
+    const qx = cx + p[pd * 8 + 6] * u, qy = cy - p[pd * 8 + 7] * u, dead = f.outcome !== "S" && day >= f.ended - 1;
+    if (s >= 44) {
+      if (!dead) { c.fillStyle = TEAL; c.beginPath(); c.arc(qx, qy, pr, 0, 7); c.fill(); if (s >= 60) { c.strokeStyle = "rgba(127,245,220,.75)"; c.lineWidth = Math.max(1, s / 200); c.beginPath(); c.arc(qx, qy, pr * 2.5, 0, 7); c.stroke(); } }
+      else { c.strokeStyle = RED; c.lineWidth = Math.max(1.2, s / 110); const k = pr * 1.5; c.beginPath(); c.moveTo(qx - k, qy - k); c.lineTo(qx + k, qy + k); c.moveTo(qx + k, qy - k); c.lineTo(qx - k, qy + k); c.stroke(); }
+    }
+  }
+  // how long the world lasted
+  const doneP = prog >= 1, lived = Math.min(f.ended, Math.floor(prog * DAYS)) / DAYS, bh = Math.max(2, s / 34), col = f.outcome === "S" ? TEAL : RED;
+  if (prog > 0 && !plain) { c.fillStyle = "#ffffff12"; c.fillRect(x, y + s - bh, s, bh); c.fillStyle = doneP ? col : WHITE; c.fillRect(x, y + s - bh, s * lived, bh); }
+  if (big && !plain) {
+    const fs = Math.max(11, s / 14.5); c.font = `${fs}px ${MONO}`; c.textBaseline = "alphabetic";
+    c.fillStyle = "#6f6a63"; c.fillText("#" + f.seed, x + fs * .8, y + fs * 1.6);
+    const label = opt.computing ? "predicting…" : !doneP ? `day ${Math.floor(prog * DAYS)}` : f.outcome === "S" ? "survived the year" : (f.outcome === "B" ? "burned" : f.outcome === "F" ? "frozen" : "torn apart") + " · day " + f.ended;
+    c.fillStyle = opt.computing ? AMBER : !doneP ? "#c9c3ba" : col; c.fillText(label, x + fs * .8, y + s - bh - fs * .7);
+  }
+  c.restore();
+  if (!opt.bare && s >= 14) { c.strokeStyle = opt.computing ? `rgba(242,179,90,${.5 + .4 * Math.sin(opt.t * 9)})` : doneP && f.outcome === "S" ? "rgba(127,245,220,.8)" : "rgba(255,255,255,.13)"; c.lineWidth = doneP && f.outcome === "S" && s < 60 ? 1.5 : 1; c.strokeRect(x + .5, y + .5, s - 1, s - 1); }
+}
+// settled boxes are painted once into a big sheet; only the ones still playing are drawn live
+const CS = 72, ext = cells.reduce((m, c) => [Math.max(m[0], Math.abs(c.dx) + .5), Math.max(m[1], Math.abs(c.dy) + .5)], [0, 0]);
+const wall = document.createElement("canvas"); wall.width = ext[0] * 2 * CS; wall.height = ext[1] * 2 * CS; const wc = wall.getContext("2d"); let walled = 0;
+const PLAY = (f) => (f.tier === "wasm" ? .35 : .5);
+const cv = $("#cv").getContext("2d"), st = $("#strip").getContext("2d"), pc = $("#pre").getContext("2d");
+const gr = $("#grain").getContext("2d"), tiles = []; let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+for (let k = 0; k < 6; k++) { const d = gr.createImageData(960, 540); for (let p = 0; p < d.data.length; p += 4) { const v = rnd() * 255; d.data[p] = d.data[p + 1] = d.data[p + 2] = v; d.data[p + 3] = 255; } tiles.push(d); }
+const SRC = H.src.split("\n").filter((l, i, a) => i < a.length - 1 || l), codeEl = $("#code");
+SRC.forEach((l) => { const d = document.createElement("div"); d.textContent = l.slice(0, 110) || " "; codeEl.appendChild(d); }); const lineEls = [...codeEl.children];
+function words(el, text, t0, t1, t, fast) {
+  if (t < t0 - .01 || (t1 && t > t1 + .7)) { el.innerHTML = ""; return; }
+  const ws = text.split(" "), d = fast ? .18 : .5, g = fast ? .03 : .09;
+  el.innerHTML = ws.map((w, i) => { const p = ease(seg(t, t0 + i * g, t0 + i * g + d)), q = t1 ? 1 - ease(seg(t, t1, t1 + .5)) : 1;
+    return `<span style="opacity:${p * q};filter:blur(${(1 - p) * 10 + (1 - q) * 6}px);transform:translateY(${(1 - p) * 14}px)">${w}${i < ws.length - 1 ? " " : ""}</span>`; }).join("");
+}
+function rateAt(e) { // futures predicted per second, as measured
+  if (e < SWAP_E) { const n = doneAt(e); if (!n) return 0; const a = Math.max(0, n - 3); return (n - a) / (F[n - 1].done - F[a].start); }
+  let c = 0; for (const f of F) if (f.tier === "wasm" && f.done > e - 1 && f.done <= e) c++; return c / Math.min(1, Math.max(.5, e - SWAP_E));
+}
+const SX = (e) => Math.max(0, Math.min(1, e / LAST_E)) * 1700, lerp = (a, b, p) => a + (b - a) * p;
+const win = (t, a, b) => ease(seg(t, a, a + .5)) * (1 - ease(seg(t, b - .4, b)));
+const DEMO = F.find((f) => f.outcome !== "S" && f.ended > 120 && f.ended < 230) ?? F[0];
+let DMX = 0, DMY = 0; { const n = Math.min(DEMO.ended, 150); for (let d = 0; d < n; d++) for (let b = 0; b < 3; b++) { DMX += DEMO.path[d * 8 + b * 2] / (3 * n); DMY += DEMO.path[d * 8 + b * 2 + 1] / (3 * n); } }
+const IQ = F.filter((f) => f.tier === "quickjs"), IRATE = IQ.length / IQ.at(-1).done;
+
+function explainer(t) {
+  const el = $("#pre"); if (t >= START + .1) { el.style.opacity = 0; return; }
+  el.style.opacity = 1 - ease(seg(t, START - .5, START)); pc.globalAlpha = 1; pc.fillStyle = "#000"; pc.fillRect(0, 0, 1920, 1080);
+  // one future, played slowly, then quickly, then tucked into a box
+  const day = t < 6.6 ? t * 2.4 : 6.6 * 2.4 + (t - 6.6) * (DEMO.ended + 26 - 6.6 * 2.4) / 3.1;
+  const shrink = ease(seg(t, 10.0, 11.0)), s = lerp(1700, MAXPX, shrink), a = ease(seg(t, .2, 1.0)) * (1 - ease(seg(t, PRE - .5, PRE)));
+  if (a > 0) {
+    pc.globalAlpha = a; const slot = cells[3], x = lerp(960 - s / 2 - DMX * s / 5.4, GX + (slot.dx - .5) * MAXPX, shrink), y = lerp(590 - s / 2 + DMY * s / 5.4, GY + (slot.dy - .5) * MAXPX, shrink);
+    const ghost = ease(seg(t, 10.7, 11.5)); if (ghost > 0) { pc.strokeStyle = `rgba(255,255,255,${.13 * ghost})`; pc.lineWidth = 1; for (let i = 0; i < 16; i++) if (i !== 3) pc.strokeRect(GX + (cells[i].dx - .5) * MAXPX + .5, GY + (cells[i].dy - .5) * MAXPX + .5, MAXPX - 1, MAXPX - 1); }
+    drawBox(pc, DEMO, x, y, s, Math.min(1, Math.max(.004, day / DAYS)), { bare: shrink < .6, plain: shrink < .6 });
+    const P = (b) => { const d = Math.max(0, Math.min(DAYS - 1, Math.floor(day) - 1)); return [x + s / 2 + DEMO.path[d * 8 + b * 2] * s / 5.4, y + s / 2 - DEMO.path[d * 8 + b * 2 + 1] * s / 5.4]; };
+    const pull = win(t, 3.4, 6.6);
+    if (pull > 0) { pc.lineWidth = 1.5; pc.setLineDash([3, 9]); pc.lineDashOffset = -t * 30; for (const [i, j] of [[0, 1], [0, 2], [1, 2]]) { const A = P(i), B = P(j), g = pc.createLinearGradient(...A, ...B);
+        g.addColorStop(0, `rgba(${SUN[i]},${.6 * pull})`); g.addColorStop(1, `rgba(${SUN[j]},${.6 * pull})`); pc.strokeStyle = g; pc.beginPath(); pc.moveTo(...A); pc.lineTo(...B); pc.stroke(); } pc.setLineDash([]); }
+    const lab = win(t, .9, 6.4); if (lab > 0) { pc.globalAlpha = a * lab; const q = P(3); pc.font = `18px ${MONO}`; pc.fillStyle = TEAL; pc.fillText("THE PLANET", q[0] + 34, q[1] - 30); }
+    const dc = win(t, 6.6, 10.2); if (dc > 0) { pc.globalAlpha = a * dc; pc.font = `16px ${MONO}`; pc.fillStyle = "#8d877f"; pc.fillText("DAY", 1500, 400); pc.font = `150px ${SERIF}`; pc.fillStyle = WHITE; pc.fillText(String(Math.min(DEMO.ended, Math.floor(day))), 1494, 530);
+      const dd = ease(seg(day, DEMO.ended, DEMO.ended + 8)); if (dd > 0) { pc.globalAlpha = a * dc * dd; pc.font = `40px ${SERIF}`; pc.fillStyle = RED; pc.fillText(DEMO.outcome === "B" ? "The world burns." : DEMO.outcome === "F" ? "The world freezes." : "The suns fly apart.", 1500, 600); } }
+    pc.globalAlpha = 1;
+  }
+}
+window.renderAt = (t) => {
+  const e = Math.min(t - START, LAST_E), running = t >= START, swapped = t >= T_SWAP, ended = t >= T_END;
+  const hit = swapped ? Math.exp(-(t - T_SWAP) * 4.2) : 0, nDone = running ? doneAt(e) : 0, nStart = running ? startedAt(e) : 0;
+  gr.putImageData(tiles[Math.floor(t * 30) % tiles.length], 0, 0);
+  // ── story ──
+  const lines = [[.3, "Three suns. One planet.", 3.1], [3.5, "No formula can say what happens next.", 6.3], [6.6, "The only way to know: simulate it. Day by day.", 9.7], [10.0, "So which skies let a world survive?", PRE - .4],
+    [PRE + .2, "An AI wrote the code to find out.", START - .5], [START + .2, "Each box is one possible future.", START + 2.3], [START + 2.6, `Interpreted, it predicts ${IRATE.toFixed(0)} a second.`, T_HOT + .3],
+    [T_HOT + .6, "Meanwhile, it compiles itself in the background.", T_SWAP - .2], [T_SWAP + .03, "And it switches. Mid-run.", T_SWAP + 2.2],
+    [T_SWAP + 2.7, `Same code. ${X}× more futures a second.`, T_SWAP + 5.1], [T_SWAP + 5.5, `${SURV} of ${NF} worlds survive.`, T_END - .4]];
+  const cur = lines.filter((l) => t >= l[0] - .01).at(-1);
+  if (cur && !ended) words($("#cap"), cur[1], cur[0], cur[2], t, cur[0] > START && cur[0] < T_SWAP + 1); else $("#cap").innerHTML = "";
+  explainer(t);
+  // the code, briefly
+  const co = win(t, PRE, START - .3); codeEl.style.opacity = co;
+  if (co > 0) lineEls.forEach((d, i) => { const a = seg(t, PRE + .15 + i * .045, PRE + .15 + i * .045 + .3); d.style.opacity = a; d.style.color = a < 1 ? "#fff" : "#a8a299"; });
+  // ── the wall of futures ──
+  cv.fillStyle = "#000"; cv.fillRect(0, 0, 1920, 1080);
+  if (running) {
+    const px = camAt(t) * (1 + .03 * hit), finale = ease(seg(t, T_SWAP + 5.4, T_SWAP + 6.1));
+    while (walled < nDone && e >= F[walled].done + PLAY(F[walled])) { const c = cells[walled]; drawBox(wc, F[walled], (c.dx - .5 + ext[0]) * CS, (c.dy - .5 + ext[1]) * CS, CS, 1, {}); walled++; }
+    const live = px > 100; cv.imageSmoothingEnabled = true; cv.imageSmoothingQuality = "high";
+    if (!live) cv.drawImage(wall, GX - ext[0] * px, GY - ext[1] * px, ext[0] * 2 * px, ext[1] * 2 * px);
+    for (let i = live ? 0 : walled; i < nStart; i++) { const c = cells[i], f = F[i], x = GX + (c.dx - .5) * px, y = GY + (c.dy - .5) * px;
+      if (i >= nDone) drawBox(cv, f, x, y, px, 0, { computing: true, t }); else drawBox(cv, f, x, y, px, Math.min(1, (e - f.done) / PLAY(f)), {}); }
+    if (finale > 0) { cv.fillStyle = `rgba(0,0,0,${.62 * finale})`; cv.fillRect(0, 0, 1920, 1080); // the answer: only the survivors stay lit
+      for (let i = 0; i < nDone; i++) if (F[i].outcome === "S") { const c = cells[i]; cv.globalAlpha = finale; drawBox(cv, F[i], GX + (c.dx - .5) * px, GY + (c.dy - .5) * px, px, 1, {}); } cv.globalAlpha = 1; }
+  }
+  $("#flare").style.opacity = .55 * hit;
+  const rp = seg(t, T_SWAP, T_SWAP + .9), ring = $("#ring"); ring.style.width = ring.style.height = 2600 * ease(rp) + "px"; ring.style.opacity = swapped ? (1 - rp) * .9 : 0;
+  $("#topg").style.opacity = running ? 1 : 0; $("#floor").style.opacity = running ? 1 : 0;
+  // ── instruments ──
+  const eq = Math.floor(e * 5) / 5, roll = ease(seg(t, T_SWAP, T_SWAP + .45)), before = rateAt(SWAP_E - .01);
+  const val = !swapped ? rateAt(Math.max(0, eq)) : roll < 1 ? before + (rateAt(SWAP_E + .5) - before) * roll : rateAt(Math.max(SWAP_E + .5, eq));
+  const num = $("#num"); num.innerHTML = `${swapped ? Math.round(val) : nDone ? val.toFixed(1) : "–"}<small>futures predicted / second</small>`;
+  num.style.color = swapped ? WHITE : AMBER; num.style.transform = `scale(${1 + .16 * hit})`; num.style.textShadow = `0 0 ${60 * hit}px #ffcf9a`;
+  $("#mode").textContent = swapped ? "COMPILED" : "INTERPRETED"; $("#mode").style.color = swapped ? GREEN : AMBER;
+  $("#sv").textContent = nDone.toLocaleString("en-US"); const sv = survAt(nDone); $("#ss").textContent = `${sv} ${sv === 1 ? "WORLD SURVIVES" : "WORLDS SURVIVE"}`;
+  $("#status").innerHTML = t < T_HOT ? "" : t < T_COMP ? `compiling: rewriting itself in machine language ${"◐◓◑◒"[Math.floor(t * 8) % 4]}` : !swapped ? "compiled · checking it gives the same answers…" : `<span style="color:${GREEN}">✓ identical answers · switched over</span>`;
+  st.clearRect(0, 0, 1700, 70); st.fillStyle = "#ffffff14"; st.fillRect(0, 22, 1700, 1);
+  if (running) {
+    for (const f of F) { if (f.done > e) break; st.fillStyle = f.tier === "wasm" ? "#f6f1eacc" : AMBER; st.fillRect(SX(f.done) - (f.tier === "wasm" ? .75 : 1.5), 4, f.tier === "wasm" ? 1.5 : 3, 36); }
+    if (e > H.compileStarted) { const a = SX(H.compileStarted), b = SX(Math.min(e, H.compileSecs)); st.fillStyle = BLUE; st.fillRect(a, 50, b - a, 4); st.font = '500 16px "JetBrains Mono"'; st.fillText("COMPILING", a, 69); }
+    if (swapped) { st.fillStyle = GREEN; st.fillRect(SX(SWAP_E) - 1, 0, 2, 58); st.font = '500 16px "JetBrains Mono"'; st.fillText("SWITCH", SX(SWAP_E) + 8, 69); }
+    st.fillStyle = "#fff"; st.fillRect(SX(Math.max(0, e)) - 1, 0, 2, 44);
+  }
+  $("#hud").style.opacity = ease(seg(t, START + .1, START + .7)) * (ended ? 0 : 1);
+  // ── end card, on the music's last hit ──
+  $("#black").style.opacity = ended ? lerp(1, .86, ease(seg(t, T_END + .1, T_END + 1.6))) : 0;
+  words($("#end1"), `${X}× faster.`, T_END, 0, t, true);
+  words($("#end2"), "AI writes more code every day.", T_END + 1.0, 0, t);
+  words($("#end2b"), "Now that code makes itself fast. While it is already working.", T_END + 2.3, 0, t);
+  words($("#end3"), `tierup · quickjs → scriptc wasm · ${H.identical}/${H.checked} predictions identical`, T_END + 4.0, 0, t);
+};
+renderAt(0);
+</script></body></html>

@@ -1,0 +1,83 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="common.css"><script src="common.js"></script><script src="mandel-data.js"></script>
+<style>
+canvas { position: absolute; left: 0; top: 0; width: 1080px; height: 1080px; image-rendering: auto; }
+#scan { position: absolute; left: 0; right: 0; height: 3px; }
+#top { position: absolute; left: 0; right: 0; top: 0; height: 300px; background: linear-gradient(#0a0a0bd0 30%, #0a0a0b00); }
+#cap { top: 64px; text-shadow: 0 2px 20px #000; }
+#real { position: absolute; left: 72px; top: 214px; font-size: 22px; color: #a1a1aa; }
+#hud { position: absolute; left: 0; right: 0; bottom: 0; height: 200px; background: linear-gradient(#0a0a0b00, #0a0a0bd8 55%); }
+#tier { position: absolute; left: 72px; bottom: 92px; font-size: 26px; font-weight: 700; padding: 10px 18px; border-radius: 10px; }
+#rate { position: absolute; left: 72px; bottom: 44px; font-size: 22px; color: #d4d4d8; }
+#comp { position: absolute; right: 72px; bottom: 44px; font-size: 22px; color: #a1a1aa; text-align: right; }
+#clock { position: absolute; right: 72px; bottom: 92px; font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; }
+#flash { position: absolute; inset: 0; background: #4ade80; opacity: 0; }
+#dim { position: absolute; inset: 0; background: #0a0a0b; opacity: 0; }
+#end { background: none; }
+</style></head><body>
+<div class="stage">
+  <canvas id="cv" width="1000" height="1000"></canvas>
+  <div id="scan"></div>
+  <div id="top"></div><div class="hook" id="cap"></div><div id="real" class="mono">real time · not sped up</div>
+  <div id="hud"><div id="tier" class="mono"></div><div id="rate" class="mono"></div><div id="clock" class="mono"></div><div id="comp" class="mono"></div></div>
+  <div id="flash"></div><div id="dim"></div>
+  <div class="end" id="end"><div class="big">45× faster.<br><span class="green">Mid-run.</span></div>
+    <div class="sub">Same AI-written code. Same pixels.<br>It compiled itself while it ran.</div>
+    <div class="tag mono" style="color:#a1a1aa">QuickJS → scriptc wasm · 1,000 / 1,000 rows identical</div></div>
+</div>
+<script>
+const R = window.RUN, N = R.size, MAX = 1200, START = 0.2;
+const SWAP_T = R.t[R.swapRow], DONE_T = R.t[N - 1];
+const T_SWAP = START + SWAP_T, T_DONE = START + DONE_T, T_END = T_DONE + 1.6;
+// palette
+const stops = [[0, [4, 5, 14]], [.42, [10, 24, 70]], [.62, [37, 99, 235]], [.76, [255, 170, 70]], [.9, [255, 240, 210]], [1, [255, 255, 255]]];
+function col(i) {
+  if (i >= MAX) return [0, 0, 0];
+  const v = Math.pow(Math.log(1 + i) / Math.log(MAX), 1.25);
+  for (let k = 1; k < stops.length; k++) if (v <= stops[k][0]) {
+    const [a, ca] = stops[k - 1], [b, cb] = stops[k], f = (v - a) / (b - a);
+    return ca.map((c, j) => c + (cb[j] - c) * f);
+  }
+  return [255, 255, 255];
+}
+const cv = document.getElementById("cv"), ctx = cv.getContext("2d");
+const full = ctx.createImageData(N, N);
+R.pixels.forEach((row, y) => { for (let x = 0; x < N; x++) {
+  const i = (row.charCodeAt(2 * x) - 32) + 90 * (row.charCodeAt(2 * x + 1) - 32), c = col(i), o = (y * N + x) * 4;
+  full.data[o] = c[0]; full.data[o + 1] = c[1]; full.data[o + 2] = c[2]; full.data[o + 3] = 255; } });
+const fc = document.createElement("canvas"); fc.width = fc.height = N; fc.getContext("2d").putImageData(full, 0, 0);
+let drawn = 0;
+const rowsAt = (e) => { let lo = 0, hi = N; while (lo < hi) { const m = (lo + hi) >> 1; if (R.t[m] <= e) lo = m + 1; else hi = m; } return lo; };
+const fmtClock = (s) => `0:${s.toFixed(2).padStart(5, "0")}`;
+window.DURATION = T_END + 3.6;
+window.renderAt = (t) => {
+  const e = Math.max(0, t - START), n = t < START ? 0 : rowsAt(e);
+  if (n < drawn) { ctx.fillStyle = "#0a0a0b"; ctx.fillRect(0, 0, N, N); drawn = 0; }
+  if (drawn === 0 && n === 0) { ctx.fillStyle = "#0a0a0b"; ctx.fillRect(0, 0, N, N); }
+  for (; drawn < n; drawn++) { const y = R.y[drawn], h = R.h[drawn]; ctx.drawImage(fc, 0, y, N, 1, 0, y, N, Math.min(h, N - y)); }
+  const swapped = t >= T_SWAP, done = n >= N;
+  // scan line
+  const sc = $("#scan"); sc.style.opacity = 0;
+  sc.style.background = swapped ? "#4ade80" : "#fbbf24"; sc.style.boxShadow = `0 0 24px 6px ${swapped ? "#4ade80aa" : "#fbbf24aa"}`;
+  captions($("#cap"), [[0, "My AI agent wrote the code<br>drawing this. <span class=dim>Watch.</span>"], [START + 2.6, "It's slow, so it's<br><span class=amber>compiling itself…</span>"], [T_SWAP, "…and swaps<br><span class=green>mid-run.</span>"]], t);
+  fade($("#real"), t < T_SWAP ? 1 : 1 - seg(t, T_SWAP, T_SWAP + .3));
+  // HUD
+  const tier = $("#tier");
+  tier.textContent = swapped ? "⚡ native · scriptc wasm" : "QuickJS · interpreter";
+  tier.style.background = swapped ? "#0f2a19" : "#2a1f08"; tier.style.color = swapped ? "#4ade80" : "#fbbf24";
+  const w = 0.35, n0 = rowsAt(Math.max(0, e - w));
+  const rate = swapped ? (N - R.swapRow) / (DONE_T - SWAP_T) : (n - n0) / Math.min(w, Math.max(e, .05));
+  $("#rate").textContent = t < START ? "" : `${Math.round(done && !swapped ? 0 : rate).toLocaleString("en-US")} rows/s · detail ${["▮▯▯▯▯","▮▮▯▯▯","▮▮▮▯▯","▮▮▮▮▯","▮▮▮▮▮"][n<=63?0:n<=125?1:n<=250?2:n<=500?3:4]}`;
+  $("#clock").textContent = fmtClock(Math.min(e, DONE_T));
+  $("#clock").style.color = done ? "#4ade80" : "#f4f4f5";
+  $("#comp").innerHTML = e < R.compileSecs ? `${"◐◓◑◒"[Math.floor(t * 8) % 4]} compiling in the background`
+    : !swapped ? "compiled · checking output…" : `<span class=green>✓ output identical · swapped</span>`;
+  $("#flash").style.opacity = swapped ? .16 * (1 - seg(t, T_SWAP, T_SWAP + .35)) : 0;
+  // end card over the finished image
+  const ep = ease(seg(t, T_END, T_END + .5));
+  $("#dim").style.opacity = .62 * ep; fade($("#end"), ep, 30);
+  $("#top").style.opacity = 1 - ep; $("#hud").style.opacity = 1 - ep;
+  captions_fix(t, ep);
+};
+function captions_fix(t, ep) { if (ep > 0) $("#cap").style.opacity = Math.min(parseFloat($("#cap").style.opacity), 1 - ep); }
+renderAt(0);
+</script></body></html>

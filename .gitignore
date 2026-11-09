@@ -3,3 +3,12 @@ work/agent.*
 work/*.wasm
 spike/*.wasm
 video/out/*.png
+# demo run data and scratch (regenerate with the bench scripts)
+*/work*/
+futures/video/futures-data.js
+futures/video/out/
+threebody/run/
+mandel/zoom/
+mandel/horizon/
+mandel/proto/
+mandel/run.json

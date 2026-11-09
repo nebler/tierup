@@ -7,10 +7,11 @@
     "scriptc": "0.4.10"
   },
   "scripts": {
-    "build": "scriptc build adapters/main.ts -o bin/agent-policy",
-    "test": "node --no-warnings tests/run.mjs"
+    "start": "node tierup.mjs",
+    "verify": "node verify.mjs",
+    "futures": "node --no-warnings futures/bench.mjs"
   },
-  "description": "One policy for every coding agent: Claude Code hook, API bees, and an in-process codemode gate.",
+  "description": "Agent-written code starts in an interpreter and tiers up to compiled wasm mid-run (scriptc).",
   "dependencies": {
     "quickjs-emscripten": "^0.31.0"
   }

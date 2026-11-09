@@ -1,0 +1,58 @@
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="common.css"><script src="common.js"></script><script src="zoom-data.js"></script>
+<style>
+#img { position: absolute; left: 0; top: 0; width: 1080px; height: 1080px; image-rendering: pixelated; background: #000; }
+#top { position: absolute; left: 0; right: 0; top: 0; height: 300px; background: linear-gradient(#0a0a0bd8 35%, #0a0a0b00); }
+#cap { top: 64px; text-shadow: 0 2px 24px #000; }
+#hud { position: absolute; left: 0; right: 0; bottom: 0; height: 230px; background: linear-gradient(#0a0a0b00, #0a0a0be0 55%); }
+#fps { position: absolute; left: 72px; bottom: 70px; font-size: 96px; font-weight: 800; letter-spacing: -3px; font-variant-numeric: tabular-nums; line-height: 1; }
+#fpsl { position: absolute; left: 76px; bottom: 44px; font-size: 22px; color: #a1a1aa; }
+#tier { position: absolute; right: 72px; bottom: 100px; font-size: 26px; font-weight: 700; padding: 10px 18px; border-radius: 10px; }
+#comp { position: absolute; right: 72px; bottom: 50px; font-size: 22px; color: #a1a1aa; text-align: right; }
+#flash { position: absolute; inset: 0; background: #4ade80; opacity: 0; }
+#dim { position: absolute; inset: 0; background: #0a0a0b; opacity: 0; }
+#end { background: none; }
+</style></head><body>
+<div class="stage">
+  <canvas id="img" width="1080" height="1080"></canvas>
+  <div id="top"></div><div class="hook" id="cap"></div>
+  <div id="hud"><div id="fps" class="mono"></div><div id="fpsl" class="mono">frames / second · real time</div><div id="tier" class="mono"></div><div id="comp" class="mono"></div></div>
+  <div id="flash"></div><div id="dim"></div>
+  <div class="end" id="end"><div class="big">45× faster.<br><span class="green">Mid-run.</span></div>
+    <div class="sub">Same AI-written code. Same pixels.<br>It compiled itself while it ran.</div>
+    <div class="tag mono" style="color:#a1a1aa">QuickJS → scriptc wasm · every swap checked for identical output</div></div>
+</div>
+<script>
+const Z = window.ZOOM, F = Z.frames, START = 0.2;
+const SWAP_E = F[Z.swapFrame].done, LAST_E = F[F.length - 1].done;
+const T_SWAP = START + SWAP_E, T_END = START + LAST_E + 0.5;
+const imgs = F.map((f) => { const im = new Image(); im.src = `zoom/${String(f.i).padStart(4, "0")}.png`; return im; });
+window.READY = false; Promise.all(imgs.map((im) => im.decode())).then(() => { window.READY = true; });
+const cx = $("#img").getContext("2d"); cx.imageSmoothingEnabled = false;
+window.DURATION = T_END + 3.4;
+let shown = -1;
+window.renderAt = (t) => {
+  const e = t - START;
+  let k = -1; for (let j = 0; j < F.length; j++) if (F[j].done <= e) k = j; else break;
+  if (k !== shown) { if (k >= 0) cx.drawImage(imgs[k], 0, 0, 1080, 1080); else { cx.fillStyle = "#000"; cx.fillRect(0, 0, 1080, 1080); } shown = k; }
+  const swapped = e >= SWAP_E;
+  // frames rendered in the trailing second (wasm frames also count the ones the recorder skipped)
+  let fps = 0;
+  if (!swapped) { if (k >= 0) fps = 1 / (F[k].done - F[k].start); }
+  else { let cnt = 0; for (const f of F) if (f.tier === "wasm" && f.done > e - 1 && f.done <= e) cnt += f.computed ?? 1; fps = cnt / Math.min(1, Math.max(.1, e - SWAP_E)); }
+  const fe = $("#fps"); fe.textContent = k < 0 ? "…" : (swapped ? Math.round(fps) : fps.toFixed(1)) + " fps";
+  fe.style.color = swapped ? "#4ade80" : "#fbbf24";
+  fe.style.transform = `scale(${1 + .15 * Math.sin(Math.PI * seg(t, T_SWAP + .3, T_SWAP + .8))})`; fe.style.transformOrigin = "left bottom";
+  const tier = $("#tier");
+  tier.textContent = swapped ? "⚡ native · scriptc wasm" : "QuickJS · interpreter";
+  tier.style.background = swapped ? "#0f2a19" : "#2a1f08"; tier.style.color = swapped ? "#4ade80" : "#fbbf24";
+  $("#comp").innerHTML = e < Z.compileSecs ? `${"◐◓◑◒"[Math.floor(t * 8) % 4]} compiling itself in the background` : !swapped ? "compiled · checking output…" : `<span class=green>✓ identical output · swapped</span>`;
+  captions($("#cap"), [[0, "AI-written code,<br>zooming into a fractal."], [START + 1.1, "Interpreted, it crawls.<br><span class=amber>Meanwhile it compiles itself…</span>"],
+    [T_SWAP, "…and swaps mid-run.<br><span class=green>Same code. Native.</span>"]], t);
+  if (t > T_SWAP + 2.6) $("#cap").style.opacity = Math.min(parseFloat($("#cap").style.opacity), 1 - seg(t, T_SWAP + 2.6, T_SWAP + 3));
+  $("#top").style.opacity = t > T_SWAP + 2.6 ? 1 - seg(t, T_SWAP + 2.6, T_SWAP + 3) : 1;
+  $("#flash").style.opacity = swapped ? .18 * (1 - seg(t, T_SWAP, T_SWAP + .35)) : 0;
+  const ep = ease(seg(t, T_END, T_END + .5));
+  $("#dim").style.opacity = .6 * ep; fade($("#end"), ep, 30); $("#hud").style.opacity = 1 - ep;
+};
+renderAt(0);
+</script></body></html>

@@ -1,0 +1,5 @@
+node_modules/
+work/agent.*
+work/*.wasm
+spike/*.wasm
+video/out/*.png

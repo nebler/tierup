@@ -1,0 +1,17 @@
+{
+  "name": "tierup",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "playwright-core": "^1.48.2",
+    "scriptc": "0.4.10"
+  },
+  "scripts": {
+    "build": "scriptc build adapters/main.ts -o bin/agent-policy",
+    "test": "node --no-warnings tests/run.mjs"
+  },
+  "description": "One policy for every coding agent: Claude Code hook, API bees, and an in-process codemode gate.",
+  "dependencies": {
+    "quickjs-emscripten": "^0.31.0"
+  }
+}

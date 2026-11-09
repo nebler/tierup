@@ -1,0 +1,123 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>tier-up</title>
+<style>html, body { margin: 0; background: #0a0a0b; overflow: hidden; } canvas { display: block; }</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Replays two real recordings (work/interp.json, work/tierup.json) on one clock. renderAt(t) is pure.
+const { interp, tierup, code } = window.DATA;
+const fmt = new URLSearchParams(location.search).get("fmt") || "square";
+const wide = fmt === "wide";
+const W = wide ? 1920 : 1080, H = 1080;
+const cv = document.getElementById("c"); cv.width = W; cv.height = H;
+const g = cv.getContext("2d");
+
+const BG = "#0a0a0b", DIM = "#1e1e22", INK = "#f2f1ec", MUTED = "#7a7974", FAINT = "#4a4a47",
+      ACCENT = "#ffb45e", OK = "#7fd18b", PANEL = "#121214", LINE = "#232327";
+const SANS = '-apple-system, "SF Pro Display", "Helvetica Neue", sans-serif';
+const MONO = '"SF Mono", ui-monospace, Menlo, monospace';
+const easeOut = (x) => 1 - Math.pow(1 - Math.min(1, Math.max(0, x)), 3);
+const fade = (t, a, d = 0.35) => easeOut((t - a) / d);
+
+// Batch completion times (s since the run's start) interpolated from the recorded ticks.
+function lane(rec) {
+  const start = rec.events.find((e) => e.type === "start").t;
+  const ticks = rec.events.filter((e) => e.type === "tick");
+  const at = new Array(rec.batches), tier = new Array(rec.batches);
+  let prevT = 0, prevB = 0;
+  for (const tk of ticks) {
+    const t1 = tk.t - start;
+    for (let b = prevB; b < tk.batch; b++) { at[b] = prevT + (t1 - prevT) * ((b - prevB + 1) / (tk.batch - prevB)); tier[b] = tk.tier; }
+    prevT = t1; prevB = tk.batch;
+  }
+  const ev = (type) => { const e = rec.events.find((x) => x.type === type); return e ? { ...e, t: e.t - start } : null; };
+  const rate = (tierName) => { const r = ticks.filter((x) => x.tier === tierName).map((x) => x.rate).sort((a, b) => a - b); return r.length ? r[r.length >> 1] : 0; };
+  return { at, tier, total: ev("done").t, compiled: ev("compiled"), swap: ev("swap"), ticks, start, rateI: rate("interpreted"), rateC: rate("compiled") };
+}
+const A = lane(interp), B = lane(tierup);
+const START = 1.6;
+const END = START + Math.max(A.total, B.total);
+const CAPTION = END + 0.5;
+window.DURATION = CAPTION + 4;
+
+function text(s, x, y, o = {}) {
+  const { size = 26, font = SANS, color = INK, align = "left", weight = 500, alpha = 1 } = o;
+  if (alpha <= 0) return;
+  g.globalAlpha = alpha; g.fillStyle = color; g.textAlign = align; g.textBaseline = "alphabetic";
+  g.font = `${weight} ${size}px ${font}`; g.fillText(s, x, y); g.globalAlpha = 1;
+}
+const fmtN = (n) => Math.round(n).toLocaleString("en-US");
+
+const COLS = 20, ROWSN = 12, CELL = wide ? 22 : 20, DOT = 7;
+const gw = COLS * CELL, gh = ROWSN * CELL, gap = wide ? 140 : 80;
+const x0 = (W - (2 * gw + gap)) / 2;
+const L = { title: 78, sub: 116, panelY: 146, panelH: 236, gridY: 452 };
+const panelW = 2 * gw + gap, panelX = x0;
+
+function drawLane(t, ln, gx, label, isTierup) {
+  const rt = t - START, a = fade(t, 0.9, 0.5);
+  for (let k = 0; k < ln.at.length; k++) {
+    const cx = gx + (k % COLS) * CELL + CELL / 2, cy = L.gridY + Math.floor(k / COLS) * CELL + CELL / 2;
+    g.globalAlpha = a; g.fillStyle = DIM; g.beginPath(); g.arc(cx, cy, DOT / 2, 0, 7); g.fill();
+    const p = easeOut((rt - ln.at[k]) / 0.1);
+    if (p > 0) {
+      g.globalAlpha = a * p; g.fillStyle = ln.tier[k] === "compiled" ? ACCENT : INK;
+      g.beginPath(); g.arc(cx, cy, (DOT / 2) * (0.55 + 0.45 * p), 0, 7); g.fill();
+    }
+    g.globalAlpha = 1;
+  }
+  const done = rt >= ln.total, shown = Math.max(0, Math.min(rt, ln.total));
+  const ly = L.gridY + gh + 48;
+  const swapped = isTierup && ln.swap && rt >= ln.swap.t;
+  text(label, gx, ly, { size: 27, weight: 600, color: swapped ? ACCENT : INK, alpha: a });
+  text(`${shown.toFixed(1)} s`, gx + gw, ly, { size: 27, font: MONO, align: "right", color: done ? (swapped ? ACCENT : INK) : MUTED, alpha: a });
+  // status line
+  let status = "QuickJS · interpreted", col = MUTED;
+  if (isTierup) {
+    if (rt < 0) status = "QuickJS · interpreted";
+    else if (!ln.compiled || rt < ln.compiled.t) { status = "QuickJS · compiling in background"; col = MUTED; }
+    else if (rt < ln.swap.t) { status = `compiled in ${ln.compiled.secs.toFixed(1)} s · checking…`; col = OK; }
+    else { status = "same output ✓ · now compiled"; col = ACCENT; }
+  }
+  text(status, gx, ly + 36, { size: 19, font: MONO, color: col, weight: 400, alpha: a });
+  // live rows/s from the latest tick
+  let rate = 0;
+  for (const tk of ln.ticks) if (tk.t - ln.start <= rt) rate = tk.rate;
+  if (rt > 0 && !done) text(`${fmtN(rate)} rows/s`, gx, ly + 66, { size: 19, font: MONO, color: FAINT, weight: 400, alpha: a });
+  if (done) text(isTierup ? `${fmtN(ln.rateI)} → ${fmtN(ln.rateC)} rows/s` : `${fmtN(ln.rateI)} rows/s`, gx, ly + 66, { size: 19, font: MONO, color: MUTED, weight: 400, alpha: a });
+}
+
+window.renderAt = (t) => {
+  g.fillStyle = BG; g.fillRect(0, 0, W, H);
+  const a0 = fade(t, 0.05, 0.4);
+  text("Agent-written code, compiled while it runs", W / 2, L.title, { size: 34, weight: 600, align: "center", alpha: a0 });
+  text("Code-mode sandboxes interpret what the agent writes. This one tiers it up.", W / 2, L.sub, { size: 21, color: MUTED, weight: 400, align: "center", alpha: a0 });
+
+  // the model's code
+  g.globalAlpha = a0; g.fillStyle = PANEL; g.beginPath(); g.roundRect(panelX, L.panelY, panelW, L.panelH, 12); g.fill();
+  g.strokeStyle = LINE; g.lineWidth = 1; g.stroke(); g.globalAlpha = 1;
+  text(`run(input) · ${code.lines} lines of TypeScript · written by ${code.model}`, panelX + 24, L.panelY + 34, { size: 17, font: MONO, color: FAINT, weight: 400, alpha: a0 });
+  code.excerpt.forEach((ln, i) => text(ln, panelX + 24, L.panelY + 68 + i * 22, { size: 16, font: MONO, color: i === 5 ? INK : MUTED, weight: 400, alpha: a0 }));
+  text(`reconcile ${fmtN(interp.rows)} bank lines × ${fmtN(interp.rows)} invoices per batch, ${interp.batches} batches · fuzzy vendor match`, W / 2, L.gridY - 30,
+    { size: 19, color: MUTED, weight: 400, align: "center", alpha: fade(t, 0.9, 0.5) });
+
+  drawLane(t, A, x0, "interpreter only", false);
+  drawLane(t, B, x0 + gw + gap, "tier-up", true);
+
+  const cy = L.gridY + gh + 176;
+  text(`Same output on all ${interp.batches} batches. ${A.total.toFixed(1)} s → ${B.total.toFixed(1)} s.`, W / 2, cy, { size: 32, weight: 600, align: "center", alpha: fade(t, CAPTION, 0.45) });
+  text("The compiled code still runs in wasm: no files, no env, no network.", W / 2, cy + 40, { size: 20, color: MUTED, weight: 400, align: "center", alpha: fade(t, CAPTION + 0.3, 0.45) });
+  const e = tierup.env;
+  text(`${e.cpu} · ${e.os} · load average ${e.load} · scriptc ${e.scriptc} · quickjs-emscripten ${e.quickjs} · node ${e.node.replace("v", "")}`, W / 2, H - 58,
+    { size: 15, font: MONO, color: FAINT, align: "center", weight: 400, alpha: a0 });
+  text(`real runs replayed at 1× · the model's ${code.modelSecs.toFixed(0)} s of writing time is not shown`, W / 2, H - 32,
+    { size: 15, font: MONO, color: FAINT, align: "center", weight: 400, alpha: a0 });
+};
+window.renderAt(0);
+</script>
+</body>
+</html>

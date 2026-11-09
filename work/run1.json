@@ -1,0 +1,182 @@
+{
+ "batches": 120,
+ "rows": 400,
+ "model": "claude-opus-5-5",
+ "code": "interface Invoice {\n  id: string;\n  vendor: string;\n  amount: number;\n}\n\ninterface BankLine {\n  ref: string;\n  payee: string;\n  amount: number;\n}\n\ninterface ReconcileInput {\n  invoices: Invoice[];\n  bank: BankLine[];\n}\n\ninterface ReconcileResult {\n  matched: number;\n  fuzzy: number;\n  unmatched: number;\n  unmatchedTotal: number;\n}\n\nfunction normalizeName(name: string): string {\n  const cleaned: string = name.toLowerCase().replace(/[^a-z0-9 ]/g, \"\");\n  const parts: string[] = cleaned.split(\" \");\n  const kept: string[] = [];\n  for (let i = 0; i < parts.length; i++) {\n    const w: string = parts[i];\n    if (w === \"inc\" || w === \"llc\" || w === \"ltd\" || w === \"gmbh\" || w === \"co\") {\n      continue;\n    }\n    kept.push(w);\n  }\n  return kept.join(\" \").trim();\n}\n\nfunction levenshtein(a: string, b: string): number {\n  const m: number = a.length;\n  const n: number = b.length;\n  if (m === 0) {\n    return n;\n  }\n  if (n === 0) {\n    return m;\n  }\n  let prev: number[] = [];\n  let curr: number[] = [];\n  for (let j = 0; j <= n; j++) {\n    prev.push(j);\n    curr.push(0);\n  }\n  for (let i = 1; i <= m; i++) {\n    curr[0] = i;\n    const ca: string = a.charAt(i - 1);\n    for (let j = 1; j <= n; j++) {\n      const cost: number = ca === b.charAt(j - 1) ? 0 : 1;\n      const del: number = prev[j] + 1;\n      const ins: number = curr[j - 1] + 1;\n      const sub: number = prev[j - 1] + cost;\n      let best: number = del;\n      if (ins < best) {\n        best = ins;\n      }\n      if (sub < best) {\n        best = sub;\n      }\n      curr[j] = best;\n    }\n    const tmp: number[] = prev;\n    prev = curr;\n    curr = tmp;\n  }\n  return prev[n];\n}\n\nexport function run(input: string): string {\n  const data: ReconcileInput = JSON.parse(input) as ReconcileInput;\n  const invoices: Invoice[] = data.invoices ? data.invoices : [];\n  const bank: BankLine[] = data.bank ? data.bank : [];\n\n  const used: boolean[] = [];\n  const normVendors: string[] = [];\n  for (let i = 0; i < invoices.length; i++) {\n    used.push(false);\n    normVendors.push(normalizeName(invoices[i].vendor));\n  }\n\n  let matched: number = 0;\n  let fuzzy: number = 0;\n  let unmatched: number = 0;\n  let unmatchedTotal: number = 0;\n\n  for (let b = 0; b < bank.length; b++) {\n    const line: BankLine = bank[b];\n    const payee: string = normalizeName(line.payee);\n    const tolerance: number = Math.abs(line.amount) * 0.01;\n\n    let bestIndex: number = -1;\n    let bestScore: number = 0;\n\n    for (let i = 0; i < invoices.length; i++) {\n      if (used[i]) {\n        continue;\n      }\n      const diff: number = Math.abs(invoices[i].amount - line.amount);\n      if (diff > tolerance) {\n        continue;\n      }\n      const score: number = levenshtein(normVendors[i], payee) * 1000 + diff;\n      if (bestIndex === -1 || score < bestScore) {\n        bestIndex = i;\n        bestScore = score;\n      }\n    }\n\n    if (bestIndex !== -1 && bestScore < 4000) {\n      used[bestIndex] = true;\n      if (bestScore < 1) {\n        matched++;\n      } else {\n        fuzzy++;\n      }\n    } else {\n      unmatched++;\n      unmatchedTotal += line.amount;\n    }\n  }\n\n  const result: ReconcileResult = {\n    matched: matched,\n    fuzzy: fuzzy,\n    unmatched: unmatched,\n    unmatchedTotal: Math.round(unmatchedTotal * 100) / 100,\n  };\n  return JSON.stringify(result);\n}\n",
+ "events": [
+  {
+   "t": 15.0213,
+   "type": "model",
+   "secs": 15.004035083000002,
+   "lines": 139
+  },
+  {
+   "t": 15.0765,
+   "type": "start",
+   "tier": "interpreted"
+  },
+  {
+   "t": 15.1904,
+   "type": "tick",
+   "batch": 1,
+   "rate": 3573,
+   "tier": "interpreted"
+  },
+  {
+   "t": 15.2726,
+   "type": "tick",
+   "batch": 2,
+   "rate": 4863,
+   "tier": "interpreted"
+  },
+  {
+   "t": 15.3621,
+   "type": "tick",
+   "batch": 3,
+   "rate": 4469,
+   "tier": "interpreted"
+  },
+  {
+   "t": 15.4451,
+   "type": "tick",
+   "batch": 4,
+   "rate": 4819,
+   "tier": "interpreted"
+  },
+  {
+   "t": 15.5298,
+   "type": "tick",
+   "batch": 5,
+   "rate": 4723,
+   "tier": "interpreted"
+  },
+  {
+   "t": 15.6148,
+   "type": "tick",
+   "batch": 6,
+   "rate": 4707,
+   "tier": "interpreted"
+  },
+  {
+   "t": 15.7029,
+   "type": "tick",
+   "batch": 7,
+   "rate": 4542,
+   "tier": "interpreted"
+  },
+  {
+   "t": 15.7939,
+   "type": "tick",
+   "batch": 8,
+   "rate": 4393,
+   "tier": "interpreted"
+  },
+  {
+   "t": 15.8795,
+   "type": "tick",
+   "batch": 9,
+   "rate": 4674,
+   "tier": "interpreted"
+  },
+  {
+   "t": 15.9621,
+   "type": "tick",
+   "batch": 10,
+   "rate": 4844,
+   "tier": "interpreted"
+  },
+  {
+   "t": 16.0487,
+   "type": "tick",
+   "batch": 11,
+   "rate": 4618,
+   "tier": "interpreted"
+  },
+  {
+   "t": 16.1342,
+   "type": "tick",
+   "batch": 12,
+   "rate": 4676,
+   "tier": "interpreted"
+  },
+  {
+   "t": 16.218,
+   "type": "tick",
+   "batch": 13,
+   "rate": 4776,
+   "tier": "interpreted"
+  },
+  {
+   "t": 16.219,
+   "type": "compiled",
+   "secs": 0.9724357920000002,
+   "bytes": 484475
+  },
+  {
+   "t": 16.3197,
+   "type": "swap",
+   "batch": 13
+  },
+  {
+   "t": 16.3197,
+   "type": "tick",
+   "batch": 14,
+   "rate": 3934,
+   "tier": "compiled"
+  },
+  {
+   "t": 16.3702,
+   "type": "tick",
+   "batch": 30,
+   "rate": 126780,
+   "tier": "compiled"
+  },
+  {
+   "t": 16.4207,
+   "type": "tick",
+   "batch": 47,
+   "rate": 134612,
+   "tier": "compiled"
+  },
+  {
+   "t": 16.4723,
+   "type": "tick",
+   "batch": 64,
+   "rate": 131598,
+   "tier": "compiled"
+  },
+  {
+   "t": 16.5242,
+   "type": "tick",
+   "batch": 81,
+   "rate": 131202,
+   "tier": "compiled"
+  },
+  {
+   "t": 16.5744,
+   "type": "tick",
+   "batch": 98,
+   "rate": 135457,
+   "tier": "compiled"
+  },
+  {
+   "t": 16.6261,
+   "type": "tick",
+   "batch": 114,
+   "rate": 123776,
+   "tier": "compiled"
+  },
+  {
+   "t": 16.645,
+   "type": "tick",
+   "batch": 120,
+   "rate": 127019,
+   "tier": "compiled"
+  },
+  {
+   "t": 16.6451,
+   "type": "done",
+   "total": 16.645057625
+  }
+ ]
+}

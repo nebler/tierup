@@ -1,0 +1,1708 @@
+{
+ "batches": 240,
+ "rows": 400,
+ "model": "claude-opus-5-5",
+ "interpretOnly": true,
+ "env": {
+  "cpu": "Apple M4 Pro",
+  "cores": 12,
+  "os": "macOS 26.6.1",
+  "load": 5.8,
+  "node": "v24.22.0",
+  "scriptc": "0.4.10",
+  "quickjs": "0.31.0"
+ },
+ "code": "interface Invoice {\n  id: string;\n  vendor: string;\n  amount: number;\n}\n\ninterface BankLine {\n  ref: string;\n  payee: string;\n  amount: number;\n}\n\ninterface ReconcileInput {\n  invoices: Invoice[];\n  bank: BankLine[];\n}\n\ninterface ReconcileResult {\n  matched: number;\n  fuzzy: number;\n  unmatched: number;\n  unmatchedTotal: number;\n}\n\nfunction normalizeName(name: string): string {\n  const cleaned: string = name.toLowerCase().replace(/[^a-z0-9 ]/g, \"\");\n  const parts: string[] = cleaned.split(\" \");\n  const kept: string[] = [];\n  for (let i = 0; i < parts.length; i++) {\n    const w: string = parts[i];\n    if (w === \"inc\" || w === \"llc\" || w === \"ltd\" || w === \"gmbh\" || w === \"co\") {\n      continue;\n    }\n    kept.push(w);\n  }\n  return kept.join(\" \").trim();\n}\n\nfunction levenshtein(a: string, b: string): number {\n  const m: number = a.length;\n  const n: number = b.length;\n  if (m === 0) {\n    return n;\n  }\n  if (n === 0) {\n    return m;\n  }\n  let prev: number[] = [];\n  let curr: number[] = [];\n  for (let j = 0; j <= n; j++) {\n    prev.push(j);\n    curr.push(0);\n  }\n  for (let i = 1; i <= m; i++) {\n    curr[0] = i;\n    const ca: string = a.charAt(i - 1);\n    for (let j = 1; j <= n; j++) {\n      const cost: number = ca === b.charAt(j - 1) ? 0 : 1;\n      const del: number = prev[j] + 1;\n      const ins: number = curr[j - 1] + 1;\n      const sub: number = prev[j - 1] + cost;\n      let best: number = del;\n      if (ins < best) {\n        best = ins;\n      }\n      if (sub < best) {\n        best = sub;\n      }\n      curr[j] = best;\n    }\n    const tmp: number[] = prev;\n    prev = curr;\n    curr = tmp;\n  }\n  return prev[n];\n}\n\nexport function run(input: string): string {\n  const data: ReconcileInput = JSON.parse(input) as ReconcileInput;\n  const invoices: Invoice[] = data.invoices ? data.invoices : [];\n  const bank: BankLine[] = data.bank ? data.bank : [];\n\n  const used: boolean[] = [];\n  const normVendors: string[] = [];\n  for (let i = 0; i < invoices.length; i++) {\n    used.push(false);\n    normVendors.push(normalizeName(invoices[i].vendor));\n  }\n\n  let matched: number = 0;\n  let fuzzy: number = 0;\n  let unmatched: number = 0;\n  let unmatchedTotal: number = 0;\n\n  for (let b = 0; b < bank.length; b++) {\n    const line: BankLine = bank[b];\n    const payee: string = normalizeName(line.payee);\n    const tolerance: number = Math.abs(line.amount) * 0.01;\n\n    let bestIndex: number = -1;\n    let bestScore: number = 0;\n\n    for (let i = 0; i < invoices.length; i++) {\n      if (used[i]) {\n        continue;\n      }\n      const diff: number = Math.abs(invoices[i].amount - line.amount);\n      if (diff > tolerance) {\n        continue;\n      }\n      const score: number = levenshtein(normVendors[i], payee) * 1000 + diff;\n      if (bestIndex === -1 || score < bestScore) {\n        bestIndex = i;\n        bestScore = score;\n      }\n    }\n\n    if (bestIndex !== -1 && bestScore < 4000) {\n      used[bestIndex] = true;\n      if (bestScore < 1) {\n        matched++;\n      } else {\n        fuzzy++;\n      }\n    } else {\n      unmatched++;\n      unmatchedTotal += line.amount;\n    }\n  }\n\n  const result: ReconcileResult = {\n    matched: matched,\n    fuzzy: fuzzy,\n    unmatched: unmatched,\n    unmatchedTotal: Math.round(unmatchedTotal * 100) / 100,\n  };\n  return JSON.stringify(result);\n}\n",
+ "events": [
+  {
+   "t": 0.0448,
+   "type": "start",
+   "tier": "interpreted"
+  },
+  {
+   "t": 0.1533,
+   "type": "tick",
+   "batch": 1,
+   "rate": 3687,
+   "tier": "interpreted"
+  },
+  {
+   "t": 0.2354,
+   "type": "tick",
+   "batch": 2,
+   "rate": 4877,
+   "tier": "interpreted"
+  },
+  {
+   "t": 0.3245,
+   "type": "tick",
+   "batch": 3,
+   "rate": 4489,
+   "tier": "interpreted"
+  },
+  {
+   "t": 0.407,
+   "type": "tick",
+   "batch": 4,
+   "rate": 4849,
+   "tier": "interpreted"
+  },
+  {
+   "t": 0.4922,
+   "type": "tick",
+   "batch": 5,
+   "rate": 4693,
+   "tier": "interpreted"
+  },
+  {
+   "t": 0.5752,
+   "type": "tick",
+   "batch": 6,
+   "rate": 4819,
+   "tier": "interpreted"
+  },
+  {
+   "t": 0.6622,
+   "type": "tick",
+   "batch": 7,
+   "rate": 4595,
+   "tier": "interpreted"
+  },
+  {
+   "t": 0.7542,
+   "type": "tick",
+   "batch": 8,
+   "rate": 4348,
+   "tier": "interpreted"
+  },
+  {
+   "t": 0.8395,
+   "type": "tick",
+   "batch": 9,
+   "rate": 4694,
+   "tier": "interpreted"
+  },
+  {
+   "t": 0.9283,
+   "type": "tick",
+   "batch": 10,
+   "rate": 4502,
+   "tier": "interpreted"
+  },
+  {
+   "t": 1.0146,
+   "type": "tick",
+   "batch": 11,
+   "rate": 4635,
+   "tier": "interpreted"
+  },
+  {
+   "t": 1.0996,
+   "type": "tick",
+   "batch": 12,
+   "rate": 4705,
+   "tier": "interpreted"
+  },
+  {
+   "t": 1.1851,
+   "type": "tick",
+   "batch": 13,
+   "rate": 4678,
+   "tier": "interpreted"
+  },
+  {
+   "t": 1.2758,
+   "type": "tick",
+   "batch": 14,
+   "rate": 4414,
+   "tier": "interpreted"
+  },
+  {
+   "t": 1.3558,
+   "type": "tick",
+   "batch": 15,
+   "rate": 4995,
+   "tier": "interpreted"
+  },
+  {
+   "t": 1.4387,
+   "type": "tick",
+   "batch": 16,
+   "rate": 4828,
+   "tier": "interpreted"
+  },
+  {
+   "t": 1.5195,
+   "type": "tick",
+   "batch": 17,
+   "rate": 4950,
+   "tier": "interpreted"
+  },
+  {
+   "t": 1.6083,
+   "type": "tick",
+   "batch": 18,
+   "rate": 4505,
+   "tier": "interpreted"
+  },
+  {
+   "t": 1.6931,
+   "type": "tick",
+   "batch": 19,
+   "rate": 4715,
+   "tier": "interpreted"
+  },
+  {
+   "t": 1.7835,
+   "type": "tick",
+   "batch": 20,
+   "rate": 4424,
+   "tier": "interpreted"
+  },
+  {
+   "t": 1.8617,
+   "type": "tick",
+   "batch": 21,
+   "rate": 5120,
+   "tier": "interpreted"
+  },
+  {
+   "t": 1.9489,
+   "type": "tick",
+   "batch": 22,
+   "rate": 4584,
+   "tier": "interpreted"
+  },
+  {
+   "t": 2.0331,
+   "type": "tick",
+   "batch": 23,
+   "rate": 4753,
+   "tier": "interpreted"
+  },
+  {
+   "t": 2.1152,
+   "type": "tick",
+   "batch": 24,
+   "rate": 4869,
+   "tier": "interpreted"
+  },
+  {
+   "t": 2.1974,
+   "type": "tick",
+   "batch": 25,
+   "rate": 4865,
+   "tier": "interpreted"
+  },
+  {
+   "t": 2.2812,
+   "type": "tick",
+   "batch": 26,
+   "rate": 4775,
+   "tier": "interpreted"
+  },
+  {
+   "t": 2.3628,
+   "type": "tick",
+   "batch": 27,
+   "rate": 4902,
+   "tier": "interpreted"
+  },
+  {
+   "t": 2.447,
+   "type": "tick",
+   "batch": 28,
+   "rate": 4750,
+   "tier": "interpreted"
+  },
+  {
+   "t": 2.5337,
+   "type": "tick",
+   "batch": 29,
+   "rate": 4616,
+   "tier": "interpreted"
+  },
+  {
+   "t": 2.6157,
+   "type": "tick",
+   "batch": 30,
+   "rate": 4877,
+   "tier": "interpreted"
+  },
+  {
+   "t": 2.6923,
+   "type": "tick",
+   "batch": 31,
+   "rate": 5221,
+   "tier": "interpreted"
+  },
+  {
+   "t": 2.7835,
+   "type": "tick",
+   "batch": 32,
+   "rate": 4385,
+   "tier": "interpreted"
+  },
+  {
+   "t": 2.8706,
+   "type": "tick",
+   "batch": 33,
+   "rate": 4594,
+   "tier": "interpreted"
+  },
+  {
+   "t": 2.9516,
+   "type": "tick",
+   "batch": 34,
+   "rate": 4940,
+   "tier": "interpreted"
+  },
+  {
+   "t": 3.0355,
+   "type": "tick",
+   "batch": 35,
+   "rate": 4765,
+   "tier": "interpreted"
+  },
+  {
+   "t": 3.1162,
+   "type": "tick",
+   "batch": 36,
+   "rate": 4957,
+   "tier": "interpreted"
+  },
+  {
+   "t": 3.2013,
+   "type": "tick",
+   "batch": 37,
+   "rate": 4700,
+   "tier": "interpreted"
+  },
+  {
+   "t": 3.2812,
+   "type": "tick",
+   "batch": 38,
+   "rate": 5005,
+   "tier": "interpreted"
+  },
+  {
+   "t": 3.3605,
+   "type": "tick",
+   "batch": 39,
+   "rate": 5046,
+   "tier": "interpreted"
+  },
+  {
+   "t": 3.4446,
+   "type": "tick",
+   "batch": 40,
+   "rate": 4757,
+   "tier": "interpreted"
+  },
+  {
+   "t": 3.5315,
+   "type": "tick",
+   "batch": 41,
+   "rate": 4603,
+   "tier": "interpreted"
+  },
+  {
+   "t": 3.6136,
+   "type": "tick",
+   "batch": 42,
+   "rate": 4872,
+   "tier": "interpreted"
+  },
+  {
+   "t": 3.6996,
+   "type": "tick",
+   "batch": 43,
+   "rate": 4653,
+   "tier": "interpreted"
+  },
+  {
+   "t": 3.7813,
+   "type": "tick",
+   "batch": 44,
+   "rate": 4893,
+   "tier": "interpreted"
+  },
+  {
+   "t": 3.873,
+   "type": "tick",
+   "batch": 45,
+   "rate": 4363,
+   "tier": "interpreted"
+  },
+  {
+   "t": 3.9601,
+   "type": "tick",
+   "batch": 46,
+   "rate": 4594,
+   "tier": "interpreted"
+  },
+  {
+   "t": 4.0454,
+   "type": "tick",
+   "batch": 47,
+   "rate": 4687,
+   "tier": "interpreted"
+  },
+  {
+   "t": 4.1341,
+   "type": "tick",
+   "batch": 48,
+   "rate": 4509,
+   "tier": "interpreted"
+  },
+  {
+   "t": 4.2209,
+   "type": "tick",
+   "batch": 49,
+   "rate": 4608,
+   "tier": "interpreted"
+  },
+  {
+   "t": 4.3062,
+   "type": "tick",
+   "batch": 50,
+   "rate": 4688,
+   "tier": "interpreted"
+  },
+  {
+   "t": 4.3949,
+   "type": "tick",
+   "batch": 51,
+   "rate": 4511,
+   "tier": "interpreted"
+  },
+  {
+   "t": 4.4882,
+   "type": "tick",
+   "batch": 52,
+   "rate": 4287,
+   "tier": "interpreted"
+  },
+  {
+   "t": 4.5706,
+   "type": "tick",
+   "batch": 53,
+   "rate": 4855,
+   "tier": "interpreted"
+  },
+  {
+   "t": 4.6525,
+   "type": "tick",
+   "batch": 54,
+   "rate": 4885,
+   "tier": "interpreted"
+  },
+  {
+   "t": 4.7397,
+   "type": "tick",
+   "batch": 55,
+   "rate": 4585,
+   "tier": "interpreted"
+  },
+  {
+   "t": 4.825,
+   "type": "tick",
+   "batch": 56,
+   "rate": 4687,
+   "tier": "interpreted"
+  },
+  {
+   "t": 4.9168,
+   "type": "tick",
+   "batch": 57,
+   "rate": 4359,
+   "tier": "interpreted"
+  },
+  {
+   "t": 5.0106,
+   "type": "tick",
+   "batch": 58,
+   "rate": 4264,
+   "tier": "interpreted"
+  },
+  {
+   "t": 5.1,
+   "type": "tick",
+   "batch": 59,
+   "rate": 4473,
+   "tier": "interpreted"
+  },
+  {
+   "t": 5.1858,
+   "type": "tick",
+   "batch": 60,
+   "rate": 4665,
+   "tier": "interpreted"
+  },
+  {
+   "t": 5.2727,
+   "type": "tick",
+   "batch": 61,
+   "rate": 4603,
+   "tier": "interpreted"
+  },
+  {
+   "t": 5.3546,
+   "type": "tick",
+   "batch": 62,
+   "rate": 4886,
+   "tier": "interpreted"
+  },
+  {
+   "t": 5.442,
+   "type": "tick",
+   "batch": 63,
+   "rate": 4572,
+   "tier": "interpreted"
+  },
+  {
+   "t": 5.5321,
+   "type": "tick",
+   "batch": 64,
+   "rate": 4442,
+   "tier": "interpreted"
+  },
+  {
+   "t": 5.6134,
+   "type": "tick",
+   "batch": 65,
+   "rate": 4922,
+   "tier": "interpreted"
+  },
+  {
+   "t": 5.6994,
+   "type": "tick",
+   "batch": 66,
+   "rate": 4650,
+   "tier": "interpreted"
+  },
+  {
+   "t": 5.7858,
+   "type": "tick",
+   "batch": 67,
+   "rate": 4627,
+   "tier": "interpreted"
+  },
+  {
+   "t": 5.8725,
+   "type": "tick",
+   "batch": 68,
+   "rate": 4617,
+   "tier": "interpreted"
+  },
+  {
+   "t": 5.9599,
+   "type": "tick",
+   "batch": 69,
+   "rate": 4577,
+   "tier": "interpreted"
+  },
+  {
+   "t": 6.0522,
+   "type": "tick",
+   "batch": 70,
+   "rate": 4331,
+   "tier": "interpreted"
+  },
+  {
+   "t": 6.1375,
+   "type": "tick",
+   "batch": 71,
+   "rate": 4688,
+   "tier": "interpreted"
+  },
+  {
+   "t": 6.2224,
+   "type": "tick",
+   "batch": 72,
+   "rate": 4712,
+   "tier": "interpreted"
+  },
+  {
+   "t": 6.318,
+   "type": "tick",
+   "batch": 73,
+   "rate": 4187,
+   "tier": "interpreted"
+  },
+  {
+   "t": 6.3983,
+   "type": "tick",
+   "batch": 74,
+   "rate": 4979,
+   "tier": "interpreted"
+  },
+  {
+   "t": 6.4841,
+   "type": "tick",
+   "batch": 75,
+   "rate": 4662,
+   "tier": "interpreted"
+  },
+  {
+   "t": 6.5686,
+   "type": "tick",
+   "batch": 76,
+   "rate": 4734,
+   "tier": "interpreted"
+  },
+  {
+   "t": 6.6459,
+   "type": "tick",
+   "batch": 77,
+   "rate": 5175,
+   "tier": "interpreted"
+  },
+  {
+   "t": 6.7351,
+   "type": "tick",
+   "batch": 78,
+   "rate": 4483,
+   "tier": "interpreted"
+  },
+  {
+   "t": 6.8225,
+   "type": "tick",
+   "batch": 79,
+   "rate": 4575,
+   "tier": "interpreted"
+  },
+  {
+   "t": 6.9092,
+   "type": "tick",
+   "batch": 80,
+   "rate": 4618,
+   "tier": "interpreted"
+  },
+  {
+   "t": 6.9939,
+   "type": "tick",
+   "batch": 81,
+   "rate": 4722,
+   "tier": "interpreted"
+  },
+  {
+   "t": 7.0749,
+   "type": "tick",
+   "batch": 82,
+   "rate": 4935,
+   "tier": "interpreted"
+  },
+  {
+   "t": 7.16,
+   "type": "tick",
+   "batch": 83,
+   "rate": 4701,
+   "tier": "interpreted"
+  },
+  {
+   "t": 7.2504,
+   "type": "tick",
+   "batch": 84,
+   "rate": 4425,
+   "tier": "interpreted"
+  },
+  {
+   "t": 7.3419,
+   "type": "tick",
+   "batch": 85,
+   "rate": 4369,
+   "tier": "interpreted"
+  },
+  {
+   "t": 7.4355,
+   "type": "tick",
+   "batch": 86,
+   "rate": 4275,
+   "tier": "interpreted"
+  },
+  {
+   "t": 7.5167,
+   "type": "tick",
+   "batch": 87,
+   "rate": 4928,
+   "tier": "interpreted"
+  },
+  {
+   "t": 7.6018,
+   "type": "tick",
+   "batch": 88,
+   "rate": 4699,
+   "tier": "interpreted"
+  },
+  {
+   "t": 7.6879,
+   "type": "tick",
+   "batch": 89,
+   "rate": 4648,
+   "tier": "interpreted"
+  },
+  {
+   "t": 7.7721,
+   "type": "tick",
+   "batch": 90,
+   "rate": 4747,
+   "tier": "interpreted"
+  },
+  {
+   "t": 7.8498,
+   "type": "tick",
+   "batch": 91,
+   "rate": 5148,
+   "tier": "interpreted"
+  },
+  {
+   "t": 7.9354,
+   "type": "tick",
+   "batch": 92,
+   "rate": 4676,
+   "tier": "interpreted"
+  },
+  {
+   "t": 8.0278,
+   "type": "tick",
+   "batch": 93,
+   "rate": 4328,
+   "tier": "interpreted"
+  },
+  {
+   "t": 8.1118,
+   "type": "tick",
+   "batch": 94,
+   "rate": 4759,
+   "tier": "interpreted"
+  },
+  {
+   "t": 8.1922,
+   "type": "tick",
+   "batch": 95,
+   "rate": 4979,
+   "tier": "interpreted"
+  },
+  {
+   "t": 8.278,
+   "type": "tick",
+   "batch": 96,
+   "rate": 4659,
+   "tier": "interpreted"
+  },
+  {
+   "t": 8.364,
+   "type": "tick",
+   "batch": 97,
+   "rate": 4651,
+   "tier": "interpreted"
+  },
+  {
+   "t": 8.4527,
+   "type": "tick",
+   "batch": 98,
+   "rate": 4512,
+   "tier": "interpreted"
+  },
+  {
+   "t": 8.5344,
+   "type": "tick",
+   "batch": 99,
+   "rate": 4895,
+   "tier": "interpreted"
+  },
+  {
+   "t": 8.6168,
+   "type": "tick",
+   "batch": 100,
+   "rate": 4852,
+   "tier": "interpreted"
+  },
+  {
+   "t": 8.6992,
+   "type": "tick",
+   "batch": 101,
+   "rate": 4856,
+   "tier": "interpreted"
+  },
+  {
+   "t": 8.7801,
+   "type": "tick",
+   "batch": 102,
+   "rate": 4945,
+   "tier": "interpreted"
+  },
+  {
+   "t": 8.9261,
+   "type": "tick",
+   "batch": 103,
+   "rate": 2739,
+   "tier": "interpreted"
+  },
+  {
+   "t": 9.0126,
+   "type": "tick",
+   "batch": 104,
+   "rate": 4625,
+   "tier": "interpreted"
+  },
+  {
+   "t": 9.1021,
+   "type": "tick",
+   "batch": 105,
+   "rate": 4470,
+   "tier": "interpreted"
+  },
+  {
+   "t": 9.1872,
+   "type": "tick",
+   "batch": 106,
+   "rate": 4701,
+   "tier": "interpreted"
+  },
+  {
+   "t": 9.2726,
+   "type": "tick",
+   "batch": 107,
+   "rate": 4686,
+   "tier": "interpreted"
+  },
+  {
+   "t": 9.3628,
+   "type": "tick",
+   "batch": 108,
+   "rate": 4432,
+   "tier": "interpreted"
+  },
+  {
+   "t": 9.4482,
+   "type": "tick",
+   "batch": 109,
+   "rate": 4685,
+   "tier": "interpreted"
+  },
+  {
+   "t": 9.5374,
+   "type": "tick",
+   "batch": 110,
+   "rate": 4487,
+   "tier": "interpreted"
+  },
+  {
+   "t": 9.6249,
+   "type": "tick",
+   "batch": 111,
+   "rate": 4569,
+   "tier": "interpreted"
+  },
+  {
+   "t": 9.7143,
+   "type": "tick",
+   "batch": 112,
+   "rate": 4473,
+   "tier": "interpreted"
+  },
+  {
+   "t": 9.8034,
+   "type": "tick",
+   "batch": 113,
+   "rate": 4489,
+   "tier": "interpreted"
+  },
+  {
+   "t": 9.8874,
+   "type": "tick",
+   "batch": 114,
+   "rate": 4766,
+   "tier": "interpreted"
+  },
+  {
+   "t": 9.9737,
+   "type": "tick",
+   "batch": 115,
+   "rate": 4636,
+   "tier": "interpreted"
+  },
+  {
+   "t": 10.0545,
+   "type": "tick",
+   "batch": 116,
+   "rate": 4951,
+   "tier": "interpreted"
+  },
+  {
+   "t": 10.145,
+   "type": "tick",
+   "batch": 117,
+   "rate": 4418,
+   "tier": "interpreted"
+  },
+  {
+   "t": 10.2283,
+   "type": "tick",
+   "batch": 118,
+   "rate": 4801,
+   "tier": "interpreted"
+  },
+  {
+   "t": 10.3067,
+   "type": "tick",
+   "batch": 119,
+   "rate": 5104,
+   "tier": "interpreted"
+  },
+  {
+   "t": 10.3912,
+   "type": "tick",
+   "batch": 120,
+   "rate": 4731,
+   "tier": "interpreted"
+  },
+  {
+   "t": 10.4835,
+   "type": "tick",
+   "batch": 121,
+   "rate": 4336,
+   "tier": "interpreted"
+  },
+  {
+   "t": 10.5663,
+   "type": "tick",
+   "batch": 122,
+   "rate": 4830,
+   "tier": "interpreted"
+  },
+  {
+   "t": 10.6506,
+   "type": "tick",
+   "batch": 123,
+   "rate": 4745,
+   "tier": "interpreted"
+  },
+  {
+   "t": 10.7352,
+   "type": "tick",
+   "batch": 124,
+   "rate": 4728,
+   "tier": "interpreted"
+  },
+  {
+   "t": 10.8185,
+   "type": "tick",
+   "batch": 125,
+   "rate": 4805,
+   "tier": "interpreted"
+  },
+  {
+   "t": 10.8975,
+   "type": "tick",
+   "batch": 126,
+   "rate": 5062,
+   "tier": "interpreted"
+  },
+  {
+   "t": 10.9818,
+   "type": "tick",
+   "batch": 127,
+   "rate": 4743,
+   "tier": "interpreted"
+  },
+  {
+   "t": 11.0768,
+   "type": "tick",
+   "batch": 128,
+   "rate": 4209,
+   "tier": "interpreted"
+  },
+  {
+   "t": 11.1639,
+   "type": "tick",
+   "batch": 129,
+   "rate": 4594,
+   "tier": "interpreted"
+  },
+  {
+   "t": 11.246,
+   "type": "tick",
+   "batch": 130,
+   "rate": 4872,
+   "tier": "interpreted"
+  },
+  {
+   "t": 11.3359,
+   "type": "tick",
+   "batch": 131,
+   "rate": 4449,
+   "tier": "interpreted"
+  },
+  {
+   "t": 11.4266,
+   "type": "tick",
+   "batch": 132,
+   "rate": 4410,
+   "tier": "interpreted"
+  },
+  {
+   "t": 11.5088,
+   "type": "tick",
+   "batch": 133,
+   "rate": 4868,
+   "tier": "interpreted"
+  },
+  {
+   "t": 11.5924,
+   "type": "tick",
+   "batch": 134,
+   "rate": 4785,
+   "tier": "interpreted"
+  },
+  {
+   "t": 11.679,
+   "type": "tick",
+   "batch": 135,
+   "rate": 4617,
+   "tier": "interpreted"
+  },
+  {
+   "t": 11.7592,
+   "type": "tick",
+   "batch": 136,
+   "rate": 4990,
+   "tier": "interpreted"
+  },
+  {
+   "t": 11.8382,
+   "type": "tick",
+   "batch": 137,
+   "rate": 5063,
+   "tier": "interpreted"
+  },
+  {
+   "t": 11.9178,
+   "type": "tick",
+   "batch": 138,
+   "rate": 5022,
+   "tier": "interpreted"
+  },
+  {
+   "t": 12.0061,
+   "type": "tick",
+   "batch": 139,
+   "rate": 4533,
+   "tier": "interpreted"
+  },
+  {
+   "t": 12.082,
+   "type": "tick",
+   "batch": 140,
+   "rate": 5272,
+   "tier": "interpreted"
+  },
+  {
+   "t": 12.168,
+   "type": "tick",
+   "batch": 141,
+   "rate": 4647,
+   "tier": "interpreted"
+  },
+  {
+   "t": 12.3135,
+   "type": "tick",
+   "batch": 142,
+   "rate": 2750,
+   "tier": "interpreted"
+  },
+  {
+   "t": 12.398,
+   "type": "tick",
+   "batch": 143,
+   "rate": 4735,
+   "tier": "interpreted"
+  },
+  {
+   "t": 12.4876,
+   "type": "tick",
+   "batch": 144,
+   "rate": 4463,
+   "tier": "interpreted"
+  },
+  {
+   "t": 12.5711,
+   "type": "tick",
+   "batch": 145,
+   "rate": 4788,
+   "tier": "interpreted"
+  },
+  {
+   "t": 12.6566,
+   "type": "tick",
+   "batch": 146,
+   "rate": 4681,
+   "tier": "interpreted"
+  },
+  {
+   "t": 12.7426,
+   "type": "tick",
+   "batch": 147,
+   "rate": 4650,
+   "tier": "interpreted"
+  },
+  {
+   "t": 12.8216,
+   "type": "tick",
+   "batch": 148,
+   "rate": 5064,
+   "tier": "interpreted"
+  },
+  {
+   "t": 12.9045,
+   "type": "tick",
+   "batch": 149,
+   "rate": 4826,
+   "tier": "interpreted"
+  },
+  {
+   "t": 12.9909,
+   "type": "tick",
+   "batch": 150,
+   "rate": 4628,
+   "tier": "interpreted"
+  },
+  {
+   "t": 13.0782,
+   "type": "tick",
+   "batch": 151,
+   "rate": 4584,
+   "tier": "interpreted"
+  },
+  {
+   "t": 13.1639,
+   "type": "tick",
+   "batch": 152,
+   "rate": 4668,
+   "tier": "interpreted"
+  },
+  {
+   "t": 13.2512,
+   "type": "tick",
+   "batch": 153,
+   "rate": 4582,
+   "tier": "interpreted"
+  },
+  {
+   "t": 13.3445,
+   "type": "tick",
+   "batch": 154,
+   "rate": 4287,
+   "tier": "interpreted"
+  },
+  {
+   "t": 13.4294,
+   "type": "tick",
+   "batch": 155,
+   "rate": 4709,
+   "tier": "interpreted"
+  },
+  {
+   "t": 13.5172,
+   "type": "tick",
+   "batch": 156,
+   "rate": 4558,
+   "tier": "interpreted"
+  },
+  {
+   "t": 13.6092,
+   "type": "tick",
+   "batch": 157,
+   "rate": 4348,
+   "tier": "interpreted"
+  },
+  {
+   "t": 13.6935,
+   "type": "tick",
+   "batch": 158,
+   "rate": 4744,
+   "tier": "interpreted"
+  },
+  {
+   "t": 13.7808,
+   "type": "tick",
+   "batch": 159,
+   "rate": 4580,
+   "tier": "interpreted"
+  },
+  {
+   "t": 13.8691,
+   "type": "tick",
+   "batch": 160,
+   "rate": 4534,
+   "tier": "interpreted"
+  },
+  {
+   "t": 13.9547,
+   "type": "tick",
+   "batch": 161,
+   "rate": 4671,
+   "tier": "interpreted"
+  },
+  {
+   "t": 14.0428,
+   "type": "tick",
+   "batch": 162,
+   "rate": 4540,
+   "tier": "interpreted"
+  },
+  {
+   "t": 14.132,
+   "type": "tick",
+   "batch": 163,
+   "rate": 4486,
+   "tier": "interpreted"
+  },
+  {
+   "t": 14.2197,
+   "type": "tick",
+   "batch": 164,
+   "rate": 4558,
+   "tier": "interpreted"
+  },
+  {
+   "t": 14.3043,
+   "type": "tick",
+   "batch": 165,
+   "rate": 4729,
+   "tier": "interpreted"
+  },
+  {
+   "t": 14.3968,
+   "type": "tick",
+   "batch": 166,
+   "rate": 4324,
+   "tier": "interpreted"
+  },
+  {
+   "t": 14.4856,
+   "type": "tick",
+   "batch": 167,
+   "rate": 4504,
+   "tier": "interpreted"
+  },
+  {
+   "t": 14.5717,
+   "type": "tick",
+   "batch": 168,
+   "rate": 4647,
+   "tier": "interpreted"
+  },
+  {
+   "t": 14.6486,
+   "type": "tick",
+   "batch": 169,
+   "rate": 5202,
+   "tier": "interpreted"
+  },
+  {
+   "t": 14.7374,
+   "type": "tick",
+   "batch": 170,
+   "rate": 4501,
+   "tier": "interpreted"
+  },
+  {
+   "t": 14.8206,
+   "type": "tick",
+   "batch": 171,
+   "rate": 4812,
+   "tier": "interpreted"
+  },
+  {
+   "t": 14.9068,
+   "type": "tick",
+   "batch": 172,
+   "rate": 4641,
+   "tier": "interpreted"
+  },
+  {
+   "t": 14.988,
+   "type": "tick",
+   "batch": 173,
+   "rate": 4925,
+   "tier": "interpreted"
+  },
+  {
+   "t": 15.1466,
+   "type": "tick",
+   "batch": 174,
+   "rate": 2522,
+   "tier": "interpreted"
+  },
+  {
+   "t": 15.2318,
+   "type": "tick",
+   "batch": 175,
+   "rate": 4690,
+   "tier": "interpreted"
+  },
+  {
+   "t": 15.3144,
+   "type": "tick",
+   "batch": 176,
+   "rate": 4844,
+   "tier": "interpreted"
+  },
+  {
+   "t": 15.3961,
+   "type": "tick",
+   "batch": 177,
+   "rate": 4895,
+   "tier": "interpreted"
+  },
+  {
+   "t": 15.4821,
+   "type": "tick",
+   "batch": 178,
+   "rate": 4651,
+   "tier": "interpreted"
+  },
+  {
+   "t": 15.5713,
+   "type": "tick",
+   "batch": 179,
+   "rate": 4488,
+   "tier": "interpreted"
+  },
+  {
+   "t": 15.6602,
+   "type": "tick",
+   "batch": 180,
+   "rate": 4500,
+   "tier": "interpreted"
+  },
+  {
+   "t": 15.7464,
+   "type": "tick",
+   "batch": 181,
+   "rate": 4641,
+   "tier": "interpreted"
+  },
+  {
+   "t": 15.833,
+   "type": "tick",
+   "batch": 182,
+   "rate": 4616,
+   "tier": "interpreted"
+  },
+  {
+   "t": 15.9188,
+   "type": "tick",
+   "batch": 183,
+   "rate": 4662,
+   "tier": "interpreted"
+  },
+  {
+   "t": 16.0041,
+   "type": "tick",
+   "batch": 184,
+   "rate": 4693,
+   "tier": "interpreted"
+  },
+  {
+   "t": 16.0917,
+   "type": "tick",
+   "batch": 185,
+   "rate": 4565,
+   "tier": "interpreted"
+  },
+  {
+   "t": 16.1795,
+   "type": "tick",
+   "batch": 186,
+   "rate": 4554,
+   "tier": "interpreted"
+  },
+  {
+   "t": 16.2682,
+   "type": "tick",
+   "batch": 187,
+   "rate": 4509,
+   "tier": "interpreted"
+  },
+  {
+   "t": 16.3465,
+   "type": "tick",
+   "batch": 188,
+   "rate": 5112,
+   "tier": "interpreted"
+  },
+  {
+   "t": 16.4273,
+   "type": "tick",
+   "batch": 189,
+   "rate": 4949,
+   "tier": "interpreted"
+  },
+  {
+   "t": 16.5109,
+   "type": "tick",
+   "batch": 190,
+   "rate": 4786,
+   "tier": "interpreted"
+  },
+  {
+   "t": 16.5988,
+   "type": "tick",
+   "batch": 191,
+   "rate": 4549,
+   "tier": "interpreted"
+  },
+  {
+   "t": 16.6874,
+   "type": "tick",
+   "batch": 192,
+   "rate": 4517,
+   "tier": "interpreted"
+  },
+  {
+   "t": 16.7643,
+   "type": "tick",
+   "batch": 193,
+   "rate": 5199,
+   "tier": "interpreted"
+  },
+  {
+   "t": 16.8497,
+   "type": "tick",
+   "batch": 194,
+   "rate": 4683,
+   "tier": "interpreted"
+  },
+  {
+   "t": 16.933,
+   "type": "tick",
+   "batch": 195,
+   "rate": 4804,
+   "tier": "interpreted"
+  },
+  {
+   "t": 17.019,
+   "type": "tick",
+   "batch": 196,
+   "rate": 4652,
+   "tier": "interpreted"
+  },
+  {
+   "t": 17.105,
+   "type": "tick",
+   "batch": 197,
+   "rate": 4652,
+   "tier": "interpreted"
+  },
+  {
+   "t": 17.2509,
+   "type": "tick",
+   "batch": 198,
+   "rate": 2742,
+   "tier": "interpreted"
+  },
+  {
+   "t": 17.3376,
+   "type": "tick",
+   "batch": 199,
+   "rate": 4610,
+   "tier": "interpreted"
+  },
+  {
+   "t": 17.4285,
+   "type": "tick",
+   "batch": 200,
+   "rate": 4404,
+   "tier": "interpreted"
+  },
+  {
+   "t": 17.5154,
+   "type": "tick",
+   "batch": 201,
+   "rate": 4601,
+   "tier": "interpreted"
+  },
+  {
+   "t": 17.601,
+   "type": "tick",
+   "batch": 202,
+   "rate": 4671,
+   "tier": "interpreted"
+  },
+  {
+   "t": 17.687,
+   "type": "tick",
+   "batch": 203,
+   "rate": 4651,
+   "tier": "interpreted"
+  },
+  {
+   "t": 17.7768,
+   "type": "tick",
+   "batch": 204,
+   "rate": 4456,
+   "tier": "interpreted"
+  },
+  {
+   "t": 17.8629,
+   "type": "tick",
+   "batch": 205,
+   "rate": 4644,
+   "tier": "interpreted"
+  },
+  {
+   "t": 17.9474,
+   "type": "tick",
+   "batch": 206,
+   "rate": 4739,
+   "tier": "interpreted"
+  },
+  {
+   "t": 18.0336,
+   "type": "tick",
+   "batch": 207,
+   "rate": 4640,
+   "tier": "interpreted"
+  },
+  {
+   "t": 18.1169,
+   "type": "tick",
+   "batch": 208,
+   "rate": 4797,
+   "tier": "interpreted"
+  },
+  {
+   "t": 18.2062,
+   "type": "tick",
+   "batch": 209,
+   "rate": 4479,
+   "tier": "interpreted"
+  },
+  {
+   "t": 18.2906,
+   "type": "tick",
+   "batch": 210,
+   "rate": 4741,
+   "tier": "interpreted"
+  },
+  {
+   "t": 18.3742,
+   "type": "tick",
+   "batch": 211,
+   "rate": 4788,
+   "tier": "interpreted"
+  },
+  {
+   "t": 18.4605,
+   "type": "tick",
+   "batch": 212,
+   "rate": 4634,
+   "tier": "interpreted"
+  },
+  {
+   "t": 18.5438,
+   "type": "tick",
+   "batch": 213,
+   "rate": 4797,
+   "tier": "interpreted"
+  },
+  {
+   "t": 18.6299,
+   "type": "tick",
+   "batch": 214,
+   "rate": 4648,
+   "tier": "interpreted"
+  },
+  {
+   "t": 18.7163,
+   "type": "tick",
+   "batch": 215,
+   "rate": 4633,
+   "tier": "interpreted"
+  },
+  {
+   "t": 18.7957,
+   "type": "tick",
+   "batch": 216,
+   "rate": 5036,
+   "tier": "interpreted"
+  },
+  {
+   "t": 18.8816,
+   "type": "tick",
+   "batch": 217,
+   "rate": 4653,
+   "tier": "interpreted"
+  },
+  {
+   "t": 18.9752,
+   "type": "tick",
+   "batch": 218,
+   "rate": 4274,
+   "tier": "interpreted"
+  },
+  {
+   "t": 19.0571,
+   "type": "tick",
+   "batch": 219,
+   "rate": 4887,
+   "tier": "interpreted"
+  },
+  {
+   "t": 19.1399,
+   "type": "tick",
+   "batch": 220,
+   "rate": 4833,
+   "tier": "interpreted"
+  },
+  {
+   "t": 19.2227,
+   "type": "tick",
+   "batch": 221,
+   "rate": 4829,
+   "tier": "interpreted"
+  },
+  {
+   "t": 19.3079,
+   "type": "tick",
+   "batch": 222,
+   "rate": 4695,
+   "tier": "interpreted"
+  },
+  {
+   "t": 19.3894,
+   "type": "tick",
+   "batch": 223,
+   "rate": 4907,
+   "tier": "interpreted"
+  },
+  {
+   "t": 19.4772,
+   "type": "tick",
+   "batch": 224,
+   "rate": 4556,
+   "tier": "interpreted"
+  },
+  {
+   "t": 19.5648,
+   "type": "tick",
+   "batch": 225,
+   "rate": 4566,
+   "tier": "interpreted"
+  },
+  {
+   "t": 19.6519,
+   "type": "tick",
+   "batch": 226,
+   "rate": 4594,
+   "tier": "interpreted"
+  },
+  {
+   "t": 19.7379,
+   "type": "tick",
+   "batch": 227,
+   "rate": 4648,
+   "tier": "interpreted"
+  },
+  {
+   "t": 19.8195,
+   "type": "tick",
+   "batch": 228,
+   "rate": 4906,
+   "tier": "interpreted"
+  },
+  {
+   "t": 19.9013,
+   "type": "tick",
+   "batch": 229,
+   "rate": 4887,
+   "tier": "interpreted"
+  },
+  {
+   "t": 19.9822,
+   "type": "tick",
+   "batch": 230,
+   "rate": 4946,
+   "tier": "interpreted"
+  },
+  {
+   "t": 20.0691,
+   "type": "tick",
+   "batch": 231,
+   "rate": 4603,
+   "tier": "interpreted"
+  },
+  {
+   "t": 20.1563,
+   "type": "tick",
+   "batch": 232,
+   "rate": 4586,
+   "tier": "interpreted"
+  },
+  {
+   "t": 20.2849,
+   "type": "tick",
+   "batch": 233,
+   "rate": 3111,
+   "tier": "interpreted"
+  },
+  {
+   "t": 20.3658,
+   "type": "tick",
+   "batch": 234,
+   "rate": 4946,
+   "tier": "interpreted"
+  },
+  {
+   "t": 20.4504,
+   "type": "tick",
+   "batch": 235,
+   "rate": 4726,
+   "tier": "interpreted"
+  },
+  {
+   "t": 20.5376,
+   "type": "tick",
+   "batch": 236,
+   "rate": 4585,
+   "tier": "interpreted"
+  },
+  {
+   "t": 20.6249,
+   "type": "tick",
+   "batch": 237,
+   "rate": 4587,
+   "tier": "interpreted"
+  },
+  {
+   "t": 20.7104,
+   "type": "tick",
+   "batch": 238,
+   "rate": 4676,
+   "tier": "interpreted"
+  },
+  {
+   "t": 20.7978,
+   "type": "tick",
+   "batch": 239,
+   "rate": 4577,
+   "tier": "interpreted"
+  },
+  {
+   "t": 20.8827,
+   "type": "tick",
+   "batch": 240,
+   "rate": 4708,
+   "tier": "interpreted"
+  },
+  {
+   "t": 20.8829,
+   "type": "done",
+   "total": 20.88291975
+  }
+ ]
+}
